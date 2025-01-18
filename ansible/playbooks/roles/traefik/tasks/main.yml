@@ -1,0 +1,5 @@
+---
+- name: Configure Traefik service
+  ansible.builtin.import_tasks: configure.yml
+  when:
+    - ansible_hostname in groups['servers']

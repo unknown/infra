@@ -1,0 +1,41 @@
+entryPoints:
+  http:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: https
+          scheme: https
+  https:
+    address: ":443"
+    http:
+      tls:
+        certResolver: default
+  postgres:
+    address: ":5432"
+  redis:
+    address: ":6379"
+
+api:
+  dashboard: true
+  insecure: false
+
+certificatesResolvers:
+  default:
+    acme:
+      email: "david@dmo.ooo"
+      storage: "{{ traefik_config_dir }}/acme.json"
+      dnsChallenge:
+        provider: cloudflare
+
+providers:
+  consulCatalog:
+    prefix: "traefik"
+    exposedByDefault: false
+    endpoint:
+      address: "consul.service.consul:8500"
+      scheme: "http"
+
+  file:
+    filename: "{{ traefik_config_dir }}/dynamic_config.yml"
+    watch: true

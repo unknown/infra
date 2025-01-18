@@ -1,0 +1,17 @@
+---
+- name: Create Vault configuration file
+  ansible.builtin.template:
+    src: vault.hcl.j2
+    dest: "{{ vault_config_dir }}/vault.hcl"
+  notify: restart vault
+
+- name: Start Vault daemon
+  ansible.builtin.systemd:
+    name: vault
+    state: started
+    enabled: true
+
+- name: Wait for Vault to start
+  ansible.builtin.wait_for:
+    port: 8200
+    timeout: 30

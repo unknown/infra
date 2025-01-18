@@ -1,0 +1,33 @@
+data_dir = "{{ consul_data_dir }}"
+retry_join = [{% for host in groups['servers'] %}{{ hostvars[host].ansible_host | to_json }}{% if not loop.last %}, {% endif %}{% endfor %}]
+advertise_addr = "{% raw %}{{ GetPrivateInterfaces | exclude \"name\" \"docker0\" | attr \"address\" }}{% endraw %}"
+
+{% if ansible_hostname in groups['servers'] %}
+ui = true
+server = true
+bootstrap_expect = {{ groups['servers'] | length }}
+client_addr = "0.0.0.0"
+{% endif %}
+
+acl {
+  enabled = true
+  default_policy = "deny"
+  down_policy = "extend-cache"
+{% if ansible_hostname in groups['clients'] %}
+  tokens {
+    # default = "<AGENT_TOKEN>"
+  }
+{% endif %}
+}
+
+service {
+  name = "consul"
+}
+
+connect {
+  enabled = true
+}
+
+ports {
+  grpc = 8502
+}

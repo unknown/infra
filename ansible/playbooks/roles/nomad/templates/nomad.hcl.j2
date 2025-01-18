@@ -1,0 +1,47 @@
+data_dir = "{{ nomad_data_dir }}"
+
+advertise {
+  http = "{% raw %}{{ GetPrivateInterfaces | exclude \"name\" \"docker0\" | attr \"address\" }}{% endraw %}"
+  rpc = "{% raw %}{{ GetPrivateInterfaces | exclude \"name\" \"docker0\" | attr \"address\" }}{% endraw %}"
+  serf = "{% raw %}{{ GetPrivateInterfaces | exclude \"name\" \"docker0\" | attr \"address\" }}{% endraw %}"
+}
+
+{% if ansible_hostname in groups['servers'] %}
+server {
+  enabled = true
+  bootstrap_expect = {{ groups['servers'] | length }}
+}
+{% elif ansible_hostname in groups['clients'] %}
+client {
+  enabled = true
+}
+{% endif %}
+
+acl {
+  enabled = true
+}
+
+consul {
+  address = "http://localhost:8500"
+  token = "{{ consul_nomad_token }}"
+}
+
+vault {
+  enabled = true
+{% if ansible_hostname in groups['servers'] %}
+  default_identity {
+    aud = ["vault.io"]
+    ttl = "1h"
+  }
+{% elif ansible_hostname in groups['clients'] %}
+  address = "http://vault.service.consul:8200"
+{% endif %}
+}
+
+{% if ansible_hostname in groups['clients'] %}
+plugin "docker" {
+  config {
+    privileged = true
+  }
+}
+{% endif %}

@@ -1,0 +1,17 @@
+---
+- name: Create Consul configuration file
+  ansible.builtin.template:
+    src: consul.hcl.j2
+    dest: "{{ consul_config_dir }}/consul.hcl"
+  notify: restart consul
+
+- name: Start Consul daemon
+  ansible.builtin.systemd:
+    name: consul
+    state: started
+    enabled: true
+
+- name: Wait for Consul to start
+  ansible.builtin.wait_for:
+    port: 8500
+    timeout: 30

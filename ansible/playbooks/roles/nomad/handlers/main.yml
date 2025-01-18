@@ -1,0 +1,10 @@
+---
+  - name: restart nomad
+    ansible.builtin.systemd:
+      name: nomad
+      state: restarted
+
+  - name: restart vault
+    ansible.builtin.systemd:
+      name: vault
+      state: restarted

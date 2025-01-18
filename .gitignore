@@ -1,0 +1,16 @@
+# Terraform
+.terraform
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+.terraform.tfstate.lock.info
+terraform.tfvars
+variables.hcl
+*.pem
+
+# Ansible
+inventory
+
+# Secrets
+*.token
+.env

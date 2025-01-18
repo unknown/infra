@@ -1,0 +1,41 @@
+---
+- name: Load Cloudflare DNS API token
+  ansible.builtin.set_fact:
+    cloudflare_dns_api_token: "{{ lookup('ansible.builtin.file', 'cloudflare.token') }}"
+
+- name: Ensure Traefik configuration directory exists
+  ansible.builtin.file:
+    path: "{{ traefik_config_dir }}"
+    state: directory
+    recurse: true
+
+- name: Ensure systemd Traefik service file exists
+  ansible.builtin.template:
+    src: traefik.service.j2
+    dest: /etc/systemd/system/traefik.service
+    mode: 0644
+
+- name: Create Traefik static configuration file
+  ansible.builtin.template:
+    src: traefik.yml.j2
+    dest: "{{ traefik_config_dir }}/traefik.yml"
+    mode: 0644
+  notify: restart traefik
+
+- name: Create Traefik environment file
+  ansible.builtin.template:
+    src: traefik.env.j2
+    dest: "{{ traefik_config_dir }}/traefik.env"
+    mode: 0644
+
+- name: Create Traefik dynamic configuration file
+  ansible.builtin.copy:
+    src: dynamic_config.yml
+    dest: "{{ traefik_config_dir }}/dynamic_config.yml"
+    mode: 0644
+
+- name: Start Traefik daemon
+  ansible.builtin.systemd:
+    name: traefik
+    state: started
+    enabled: true

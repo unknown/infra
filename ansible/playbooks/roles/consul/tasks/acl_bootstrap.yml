@@ -1,0 +1,83 @@
+---
+- name: Bootstrap Consul ACL
+  block:
+    - name: Attempt ACL bootstrap
+      ansible.builtin.command: "consul acl bootstrap -format=json"
+      register: consul_acl_bootstrap_raw
+      failed_when:
+        - consul_acl_bootstrap_raw.rc != 0
+        - "'ACL bootstrap no longer allowed' not in consul_acl_bootstrap_raw.stderr"
+      changed_when: consul_acl_bootstrap_raw.rc == 0
+      until: consul_acl_bootstrap_raw is not failed
+      retries: 3
+
+    - name: Verify ACL bootstrap
+      ansible.builtin.assert:
+        that: "'ACL bootstrap no longer allowed' not in consul_acl_bootstrap_raw.stderr"
+        fail_msg: "{{ consul_acl_bootstrap_raw.stderr }}"
+
+    - name: Store bootstrap token
+      ansible.builtin.set_fact:
+        consul_acl_bootstrap: "{{ (consul_acl_bootstrap_raw.stdout | from_json).SecretID }}"
+
+- name: Configure operator policy
+  block:
+    - name: Deploy operator policy
+      ansible.builtin.copy:
+        src: consul-operator-policy.hcl
+        dest: "{{ consul_data_dir }}/consul-operator-policy.hcl"
+        mode: 0644
+
+    - name: Create operator policy
+      ansible.builtin.command: >-
+        consul acl policy create
+        -name consul-operator
+        -rules @{{ consul_data_dir }}/consul-operator-policy.hcl
+      environment:
+        CONSUL_HTTP_TOKEN: "{{ consul_acl_bootstrap }}"
+
+    - name: Create Consul operator token
+      ansible.builtin.command: >-
+        consul acl token create
+        -format=json
+        -description 'Consul operator token'
+        -policy-name consul-operator
+      register: consul_operator_token_raw
+      environment:
+        CONSUL_HTTP_TOKEN: "{{ consul_acl_bootstrap }}"
+
+    - name: Store operator token locally
+      ansible.builtin.copy:
+        dest: "consul-operator.token"
+        content: "{{ consul_operator_token_raw.stdout }}"
+        mode: 0644
+      delegate_to: localhost
+      become: false
+    
+    - name: Store operator token in facts
+      ansible.builtin.set_fact:
+        consul_operator_token: "{{ (consul_operator_token_raw.stdout | from_json).SecretID }}"
+
+- name: Configure DNS policy
+  block:
+    - name: Deploy DNS policy
+      ansible.builtin.copy:
+        src: consul-dns-policy.hcl
+        dest: "{{ consul_data_dir }}/consul-dns-policy.hcl"
+        mode: 0644
+
+    - name: Create DNS policy
+      ansible.builtin.command: >-
+        consul acl policy create
+        -name dns-lookup
+        -rules @{{ consul_data_dir }}/consul-dns-policy.hcl
+      environment:
+        CONSUL_HTTP_TOKEN: "{{ consul_acl_bootstrap }}"
+
+    - name: Update anonymous token DNS lookup policy
+      ansible.builtin.command: >-
+        consul acl token update
+        -id anonymous
+        -policy-name dns-lookup
+      environment:
+        CONSUL_HTTP_TOKEN: "{{ consul_acl_bootstrap }}"

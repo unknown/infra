@@ -1,0 +1,42 @@
+---
+- name: Load Consul credentials
+  block:
+    - name: Read Consul operator token
+      ansible.builtin.shell: "cat consul-operator.token"
+      register: consul_acl_operator_output
+      delegate_to: localhost
+      become: false
+
+    - name: Set Consul operator token fact
+      ansible.builtin.set_fact:
+        consul_operator_token: "{{ (consul_acl_operator_output.stdout | from_json).SecretID }}"
+
+- name: Configure Vault's Consul access
+  block:
+    - name: Deploy Vault's Consul policy
+      ansible.builtin.copy:
+        src: consul-vault-policy.hcl
+        dest: "{{ vault_data_dir }}/consul-vault-policy.hcl"
+        mode: 0644
+
+    - name: Create Vault's Consul policy
+      ansible.builtin.command: >-
+        consul acl policy create
+        -name vault
+        -rules @{{ vault_data_dir }}/consul-vault-policy.hcl
+      environment:
+        CONSUL_HTTP_TOKEN: "{{ consul_operator_token }}"
+
+    - name: Create Vault's Consul token
+      ansible.builtin.command: >-
+        consul acl token create
+        -format=json
+        -description 'Vault token'
+        -policy-name vault
+      register: consul_vault_token_raw
+      environment:
+        CONSUL_HTTP_TOKEN: "{{ consul_operator_token }}"
+
+    - name: Set Vault's Consul token fact
+      ansible.builtin.set_fact:
+        consul_vault_token: "{{ (consul_vault_token_raw.stdout | from_json).SecretID }}"

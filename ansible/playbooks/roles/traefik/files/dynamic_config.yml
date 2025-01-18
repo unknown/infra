@@ -1,0 +1,61 @@
+tls:
+  stores:
+    default:
+      defaultGeneratedCert:
+        resolver: default
+        domain:
+          main: example.com
+          sans:
+            - "*.example.com"
+            - "*.internal.example.com"
+  options:
+    default:
+      alpnProtocols:
+        - h2
+        - http/1.1
+        - acme-tls/1
+        - postgresql
+
+http:
+  routers:
+    traefik:
+      rule: "Host(`traefik.internal.example.com`)"
+      service: "api@internal"
+      entryPoints:
+        - https
+      middlewares:
+        - auth
+    consul:
+      rule: "Host(`consul.internal.example.com`)"
+      service: "consul@file"
+      entryPoints:
+        - https
+    nomad:
+      rule: "Host(`nomad.internal.example.com`)"
+      service: "nomad@file"
+      entryPoints:
+        - https
+    vault:
+      rule: "Host(`vault.internal.example.com`)"
+      service: "vault@file"
+      entryPoints:
+        - https
+  services:
+    consul:
+      loadBalancer:
+        servers:
+          - url: "http://consul.service.consul:8500"
+    nomad:
+      loadBalancer:
+        servers:
+          - url: "http://nomad.service.consul:4646"
+    vault:
+      loadBalancer:
+        servers:
+          - url: "http://vault.service.consul:8200"
+  middlewares:
+    auth:
+      basicAuth:
+        users:
+          # TODO: replace with a vaulted secret
+          - "test:$apr1$H6uskkkW$IgXLP6ewTrSuBkTrqE8wj/"

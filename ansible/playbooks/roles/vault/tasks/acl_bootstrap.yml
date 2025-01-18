@@ -1,0 +1,50 @@
+---
+- name: Check Vault status
+  ansible.builtin.command: "vault status -format=json"
+  register: vault_status_raw
+  environment:
+    VAULT_ADDR: "http://localhost:8200"
+  changed_when: false
+  failed_when: vault_status_raw.rc == 1
+
+- name: Set Vault status fact
+  ansible.builtin.set_fact:
+    vault_status: "{{ vault_status_raw.stdout | from_json }}"
+
+- name: Initialize Vault
+  block:
+    - name: Attempt Vault initialization
+      ansible.builtin.command: "vault operator init -format=json"
+      register: vault_init_raw
+      environment:
+        VAULT_ADDR: "http://localhost:8200"
+
+    - name: Set Vault initialization fact
+      ansible.builtin.set_fact:
+        vault_init: "{{ vault_init_raw.stdout | from_json }}"
+
+    - name: Store Vault's initialization data locally
+      ansible.builtin.copy:
+        dest: "vault-init.token"
+        content: "{{ vault_init_raw.stdout }}"
+        mode: 0644
+      delegate_to: localhost
+      become: false
+
+  when:
+    - vault_status.initialized == false
+
+- name: Load Vault's initialization data
+  block:
+    - name: Read Vault's initialization data
+      ansible.builtin.shell: "cat vault-init.token"
+      register: vault_init_output
+      delegate_to: localhost
+      become: false
+
+    - name: Set Vault's initialization data fact
+      ansible.builtin.set_fact:
+        vault_init: "{{ (vault_init_output.stdout | from_json) }}"
+
+  when:
+    - vault_status.initialized == true

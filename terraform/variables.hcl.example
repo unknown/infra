@@ -1,0 +1,11 @@
+# Terraform variables (all are required)
+location     = "ash"
+network_zone = "us-east"
+
+# These variables are optional and have defaults
+# name                 = "nomad"
+# image                = "ubuntu-22.04"
+# server_instance_type = "cpx11"
+# client_instance_type = "cpx11"
+# server_count         = 3
+# client_count         = 3

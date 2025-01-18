@@ -1,0 +1,20 @@
+---
+- name: Configure Consul service
+  ansible.builtin.import_tasks: configure.yml
+
+- name: Bootstrap Consul ACL
+  ansible.builtin.import_tasks: acl_bootstrap.yml
+  when:
+    - ansible_hostname in groups['servers']
+  delegate_to: "{{ groups['servers'][0] }}"
+  run_once: true
+
+- name: Update agent token in configuration
+  ansible.builtin.replace:
+    path: "{{ consul_config_dir }}/consul.hcl"
+    regexp: '# default = "<AGENT_TOKEN>"'
+    replace: 'default = "{{ consul_operator_token }}"'
+  notify: restart consul
+
+- name: Configure DNS forwarding
+  ansible.builtin.import_tasks: dns.yml

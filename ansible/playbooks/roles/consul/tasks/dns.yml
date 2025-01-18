@@ -1,0 +1,26 @@
+---
+- name: Configure systemd-resolved
+  block:
+    - name: Create systemd-resolved configuration directory
+      ansible.builtin.file:
+        path: "/etc/systemd/resolved.conf.d"
+        state: directory
+        mode: 0755
+
+    - name: Get Docker bridge IP
+      vars:
+        format: "{% raw %}{{(index .IPAM.Config 0).Gateway}}{% endraw %}"
+      ansible.builtin.command: docker network inspect bridge --format "{{ format }}"
+      register: docker_bridge_ip_address_raw
+      changed_when: false
+
+    - name: Set Docker bridge IP fact
+      ansible.builtin.set_fact:
+        docker_bridge_ip_address: "{{ docker_bridge_ip_address_raw.stdout }}"
+    
+    - name: Create systemd-resolved configuration file
+      ansible.builtin.template:
+        src: consul-systemd-resolved.conf.j2
+        dest: "/etc/systemd/resolved.conf.d/consul.conf"
+        mode: 0644
+      notify: restart systemd-resolved

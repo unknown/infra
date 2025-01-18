@@ -1,0 +1,62 @@
+---
+- name: Install required packages
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Install common packages
+      ansible.builtin.apt:
+        pkg:
+          - software-properties-common
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gpg
+
+    - name: Download Docker GPG key
+      ansible.builtin.shell:
+        cmd: curl -fsSL https://download.docker.com/linux/{{ ansible_distribution | lower }}/gpg -o /etc/apt/keyrings/docker.asc
+        creates: /etc/apt/keyrings/docker.asc
+
+    - name: Add Docker repository
+      ansible.builtin.apt_repository:
+        repo: deb [signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/{{ ansible_distribution | lower }} {{ ansible_distribution_release }} stable
+
+    - name: Install Docker packages
+      ansible.builtin.apt:
+        pkg:
+          - docker-ce
+    
+    - name: Download Hashicorp GPG key
+      ansible.builtin.shell:
+        cmd: wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+        creates: /usr/share/keyrings/hashicorp-archive-keyring.gpg
+
+    - name: Add HashiCorp repository
+      ansible.builtin.apt_repository:
+        repo: deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com {{ ansible_distribution_release }} main
+        state: present
+
+    - name: Install HashiStack packages
+      ansible.builtin.apt:
+        pkg:
+          - consul=1.19.0-1
+          - vault=1.17.1-1
+          - nomad=1.8.1-1
+          - consul-template=0.39.0-1
+    
+    - name: Install Traefik
+      block:
+        - name: Download Traefik 
+          ansible.builtin.get_url:
+            # TODO: architecture is hardcoded
+            url: https://github.com/traefik/traefik/releases/download/v3.3.1/traefik_v3.3.1_linux_amd64.tar.gz
+            dest: /tmp/traefik.tar.gz
+            mode: 0644
+
+        - name: Extract Traefik
+          ansible.builtin.unarchive:
+            src: /tmp/traefik.tar.gz
+            dest: /usr/local/bin
+            remote_src: true
+            mode: 0755

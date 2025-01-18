@@ -1,0 +1,17 @@
+---
+- name: Create Nomad configuration file
+  ansible.builtin.template:
+    src: nomad.hcl.j2
+    dest: "{{ nomad_config_dir }}/nomad.hcl"
+  notify: restart nomad
+
+- name: Start Nomad daemon
+  ansible.builtin.systemd:
+    name: nomad
+    state: started
+    enabled: true
+
+- name: Wait for Nomad to start
+  ansible.builtin.wait_for:
+    port: 4646
+    timeout: 30

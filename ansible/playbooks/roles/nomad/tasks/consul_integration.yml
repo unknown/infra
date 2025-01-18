@@ -1,0 +1,42 @@
+---
+- name: Load Consul credentials
+  block:
+    - name: Read Consul operator token
+      ansible.builtin.shell: "cat consul-operator.token"
+      register: consul_acl_operator_output
+      delegate_to: localhost
+      become: false
+
+    - name: Set Consul operator token fact
+      ansible.builtin.set_fact:
+        consul_operator_token: "{{ (consul_acl_operator_output.stdout | from_json).SecretID }}"
+
+- name: Configure Nomad's Consul access
+  block:
+    - name: Deploy Nomad's Consul policy
+      ansible.builtin.copy:
+        src: consul-nomad-policy.hcl
+        dest: "{{ nomad_data_dir }}/consul-nomad-policy.hcl"
+        mode: 0644
+
+    - name: Create Nomad's Consul policy
+      ansible.builtin.command: >-
+        consul acl policy create
+        -name nomad
+        -rules @{{ nomad_data_dir }}/consul-nomad-policy.hcl
+      environment:
+        CONSUL_HTTP_TOKEN: "{{ consul_operator_token }}"
+
+    - name: Create Nomad's Consul token
+      ansible.builtin.command: >-
+        consul acl token create
+        -format=json
+        -description 'Nomad token'
+        -policy-name nomad
+      register: consul_nomad_token_raw
+      environment:
+        CONSUL_HTTP_TOKEN: "{{ consul_operator_token }}"
+
+    - name: Set Nomad's Consul token fact
+      ansible.builtin.set_fact:
+        consul_nomad_token: "{{ (consul_nomad_token_raw.stdout | from_json).SecretID }}"

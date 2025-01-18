@@ -1,0 +1,97 @@
+---
+- name: Bootstrap Nomad ACL
+  block:
+    - name: Attempt ACL bootstrap
+      ansible.builtin.command: "nomad acl bootstrap -json"
+      register: nomad_acl_bootstrap_raw
+      failed_when:
+        - nomad_acl_bootstrap_raw.rc != 0
+        - "'ACL bootstrap already done' not in nomad_acl_bootstrap_raw.stderr"
+      changed_when: nomad_acl_bootstrap_raw.rc == 0
+      until: nomad_acl_bootstrap_raw is not failed
+      retries: 3
+    
+    - name: Verify ACL bootstrap
+      ansible.builtin.assert:
+        that: "'ACL bootstrap already done' not in nomad_acl_bootstrap_raw.stderr"
+        fail_msg: "{{ nomad_acl_bootstrap_raw.stderr }}"
+    
+    - name: Store bootstrap token locally
+      ansible.builtin.copy:
+        dest: "nomad-bootstrap.token"
+        content: "{{ nomad_acl_bootstrap_raw.stdout }}"
+        mode: 0644
+      delegate_to: localhost
+      become: false
+
+    - name: Set bootstrap token fact
+      ansible.builtin.set_fact:
+        nomad_acl_bootstrap: "{{ nomad_acl_bootstrap_raw.stdout | from_json }}"
+
+- name: Configure operator policy
+  block:
+    - name: Deploy operator policy
+      ansible.builtin.copy:
+        src: nomad-operator-policy.hcl
+        dest: "{{ nomad_data_dir }}/nomad-operator-policy.hcl"
+        mode: 0644
+
+    - name: Create operator policy
+      ansible.builtin.command: >-
+        nomad acl policy apply
+        nomad-operator
+        {{ nomad_data_dir }}/nomad-operator-policy.hcl
+      environment:
+        NOMAD_TOKEN: "{{ nomad_acl_bootstrap.SecretID }}"
+
+    - name: Create Nomad operator token
+      ansible.builtin.command: >-
+        nomad acl token create
+        -json
+        -name nomad-operator
+        -policy nomad-operator
+      register: nomad_operator_token_raw
+      environment:
+        NOMAD_TOKEN: "{{ nomad_acl_bootstrap.SecretID }}"
+
+    - name: Store Nomad operator token locally
+      ansible.builtin.copy:
+        dest: "nomad-operator.token"
+        content: "{{ nomad_operator_token_raw.stdout }}"
+        mode: 0644
+      delegate_to: localhost
+      become: false
+
+- name: Configure Nomad deployer policy
+  block:
+    - name: Deploy Nomad deployer policy
+      ansible.builtin.copy:
+        src: nomad-deployer-policy.hcl
+        dest: "{{ nomad_data_dir }}/nomad-deployer-policy.hcl"
+        mode: 0644
+
+    - name: Create Nomad deployer policy
+      ansible.builtin.command: >-
+        nomad acl policy apply
+        nomad-deployer
+        {{ nomad_data_dir }}/nomad-deployer-policy.hcl
+      environment:
+        NOMAD_TOKEN: "{{ nomad_acl_bootstrap.SecretID }}"
+
+    - name: Create Nomad deployer token
+      ansible.builtin.command: >-
+        nomad acl token create
+        -json
+        -name nomad-deployer
+        -policy nomad-deployer
+      register: nomad_deployer_token_raw
+      environment:
+        NOMAD_TOKEN: "{{ nomad_acl_bootstrap.SecretID }}"
+
+    - name: Store Nomad deployer token locally
+      ansible.builtin.copy:
+        dest: "nomad-deployer.token"
+        content: "{{ nomad_deployer_token_raw.stdout }}"
+        mode: 0644
+      delegate_to: localhost
+      become: false
